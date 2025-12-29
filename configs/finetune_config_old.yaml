@@ -1,0 +1,49 @@
+# Fine-tuning Config for Omnilingual ASR LLM on RegSpeech12 Bengali Dialects
+# Based on: workflows/recipes/wav2vec2/asr/configs/llm-finetune.yaml
+
+model:
+  name: "omniASR_LLM_1B_v2"
+
+dataset:
+  name: "regspeech12_bengali"
+  train_split: "train"
+  valid_split: "dev"
+  storage_mode: "MIXTURE_PARQUET"
+  task_mode: "ASR"
+  mixture_parquet_storage_config:
+    dataset_summary_path: "/root/thesis/data/regspeech12_parquet/dataset_stats.tsv"
+    beta_corpus: 0.5
+    beta_language: 0.5
+  asr_task_config:
+    min_audio_len: 8000          # 0.5s at 16kHz
+    max_audio_len: 160000        # 30s at 16kHz (RegSpeech12 max)
+    max_num_elements: 320000    # ~4 samples of 30s
+    batch_shuffle_window: 10
+    normalize_audio: false
+    example_shuffle_window: 500
+
+tokenizer:
+  name: "omniASR_tokenizer_v1"
+
+optimizer:
+  config:
+    lr: 1e-05
+
+trainer:
+  data_parallelism: "fsdp"
+  fsdp:
+    granularity: "stack"
+    version: "v1"
+    fp32_reduce: false
+  freeze_encoder_for_n_steps: 500
+  mixed_precision:
+    dtype: "torch.bfloat16"
+  grad_accumulation:
+    num_batches: 8
+
+regime:
+  num_steps: 5000
+  validate_after_n_steps: 0
+  validate_every_n_steps: 500
+  checkpoint_every_n_steps: 500
+  publish_metrics_every_n_steps: 50

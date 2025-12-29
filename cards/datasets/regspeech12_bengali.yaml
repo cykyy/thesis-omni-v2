@@ -1,0 +1,8 @@
+# Dataset Asset Card for RegSpeech12 Bengali Dialects
+# Place in: /root/omnilingual-asr/src/omnilingual_asr/cards/datasets/regspeech12.yaml
+
+name: regspeech12_bengali
+dataset_family: mixture_parquet_asr_dataset
+dataset_config:
+  data: /root/thesis/data/regspeech12_parquet
+tokenizer_ref: omniASR_tokenizer_v1

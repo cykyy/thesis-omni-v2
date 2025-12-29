@@ -1,0 +1,79 @@
+# Fine-tuning Configuration for Omnilingual ASR on Bengali Dialects
+# Dataset: RegSpeech12
+
+# =============================================================================
+# Paths
+# =============================================================================
+dataset_root: /root/.cache/kagglehub/datasets/mdrezuwanhassan/regspeech12/versions/1
+output_dir: /root/thesis/checkpoints/finetune_v1
+
+# Data files
+train_xlsx: train.xlsx
+valid_xlsx: valid.xlsx
+audio_dir_train: train
+audio_dir_valid: valid
+
+# =============================================================================
+# Model
+# =============================================================================
+model_card: omniASR_LLM_1B_v2
+
+# Transfer learning options
+freeze_encoder: false          # Freeze all encoder layers
+freeze_encoder_layers: 0       # Or freeze first N layers (0 = none)
+
+# =============================================================================
+# Data Processing
+# =============================================================================
+dialect_filter: barishal           # null = all dialects, or "barishal", "sylhet", etc.
+max_audio_length_sec: 30.0     # Skip audio longer than this
+
+# =============================================================================
+# Training Hyperparameters
+# =============================================================================
+epochs: 10
+batch_size: 4                  # Per-GPU batch size
+gradient_accumulation_steps: 4 # Effective batch = 4 * 4 = 16
+learning_rate: 1.0e-5          # 1e-5 is a good starting point for fine-tuning
+weight_decay: 0.01
+max_grad_norm: 1.0             # Gradient clipping
+
+# =============================================================================
+# Learning Rate Schedule
+# =============================================================================
+warmup_ratio: 0.1              # 10% of total steps for warmup
+lr_scheduler_type: cosine      # Options: cosine, linear, constant
+
+# =============================================================================
+# Mixed Precision
+# =============================================================================
+fp16: true                     # Use FP16 mixed precision
+bf16: false                    # Use BF16 instead (for Ampere+ GPUs)
+
+# =============================================================================
+# Validation & Checkpointing
+# =============================================================================
+eval_steps: 500                # Evaluate every N steps
+save_steps: 500                # Save checkpoint every N steps
+save_total_limit: 3            # Keep only last N checkpoints
+early_stopping_patience: 5     # Stop if no improvement for N evaluations
+metric_for_best_model: wer     # Options: wer, cer
+
+# =============================================================================
+# Logging
+# =============================================================================
+logging_steps: 50
+log_to_tensorboard: true
+log_to_wandb: false
+wandb_project: bengali-asr-finetune
+wandb_run_name: null           # Auto-generated if null
+
+# =============================================================================
+# Reproducibility
+# =============================================================================
+seed: 42
+
+# =============================================================================
+# Resume Training
+# =============================================================================
+resume_from_checkpoint: null   # Path to checkpoint dir, or "latest"

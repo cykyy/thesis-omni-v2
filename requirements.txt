@@ -1,0 +1,6 @@
+kagglehub==0.3.13
+omnilingual-asr @ git+https://github.com/facebookresearch/omnilingual-asr.git@9b95719b482d755c8dc9ec1aff7b477f4dd89d6c
+jiwer==4.0.0
+pyyaml
+wandb
+tensorboard

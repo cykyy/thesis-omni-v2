@@ -1,0 +1,282 @@
+# =============================================================================
+# Fine-tuning Configuration for Omnilingual ASR on RegSpeech12 Bengali Dialects
+# =============================================================================
+# 
+# This config fine-tunes Meta's Omnilingual ASR model on the RegSpeech12 dataset
+# containing 12 Bengali regional dialects (~90 hours total).
+#
+# Hardware: Optimized for single GPU with 16GB VRAM (e.g., RTX 4080, T4, V100-16GB)
+# Base config: workflows/recipes/wav2vec2/asr/configs/llm-finetune.yaml
+#
+# Author: Rayhan
+# Dataset: RegSpeech12 (https://www.kaggle.com/datasets/mdrezuwanhassan/regspeech12)
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# MODEL CONFIGURATION
+# -----------------------------------------------------------------------------
+model:
+  # Model to fine-tune. Options:
+  #   - "omniASR_LLM_1B_v2": 1B parameter model with LLaMA decoder (recommended)
+  #   - "omniASR_LLM_1B": Original 1B model
+  #   - "omniASR_v2": Smaller CTC-only model (less VRAM needed)
+  #
+  # The LLM variant uses: Wav2Vec2 encoder → Linear projection → LLaMA decoder
+  # This is the most accurate but also most memory-hungry option.
+  name: "omniASR_LLM_1B_v2"
+
+
+# -----------------------------------------------------------------------------
+# DATASET CONFIGURATION
+# -----------------------------------------------------------------------------
+dataset:
+  # Name of the dataset asset card (registered via FAIRSEQ2_USER_ASSET_DIR)
+  # This must match the filename in /root/thesis/cards/datasets/
+  name: "regspeech12_bengali"
+  
+  # Split names - must match the partition names in your parquet files
+  # Our conversion script creates: split=train, split=dev, split=test
+  train_split: "train"
+  valid_split: "dev"
+  
+  # Storage format - MIXTURE_PARQUET is required for this training recipe
+  # Other option is MANIFEST but not supported by this specific recipe
+  storage_mode: "MIXTURE_PARQUET"
+  
+  # Task type - ASR for speech recognition (other option: ST for speech translation)
+  task_mode: "ASR"
+  
+  # Parquet storage configuration
+  mixture_parquet_storage_config:
+    # Path to the TSV file with dataset statistics (corpus, split, language, hours)
+    # Used for weighted sampling when training on multiple corpora/languages
+    # For single corpus like ours, weights are uniform but file is still required
+    dataset_summary_path: "/root/thesis/data/regspeech12_parquet/dataset_stats.tsv"
+    
+    # Beta parameters for corpus/language weighted sampling (Dirichlet distribution)
+    # Higher beta = more uniform sampling across corpora/languages
+    # Lower beta = sample proportional to data size
+    # With single corpus/language, these don't matter much
+    beta_corpus: 0.5
+    beta_language: 0.5
+  
+  # ASR task configuration - CRITICAL FOR MEMORY MANAGEMENT
+  asr_task_config:
+    # Minimum audio length in samples (at 16kHz sample rate)
+    # 8000 samples = 0.5 seconds
+    # Clips shorter than this are skipped (too short to be useful)
+    min_audio_len: 8000
+    
+    # Maximum audio length in samples (at 16kHz sample rate)
+    # ⚠️ THIS IS THE MAIN MEMORY CONTROL KNOB
+    # 
+    # Calculation: samples = seconds × 16000
+    #   - 480000 = 30 seconds (original, needs ~24GB+ VRAM)
+    #   - 320000 = 20 seconds (needs ~20GB VRAM)
+    #   - 160000 = 10 seconds (needs ~12-14GB VRAM) ← Our setting for 16GB GPU
+    #   - 80000  = 5 seconds  (needs ~8-10GB VRAM, use if still OOM)
+    #
+    # Audio clips longer than this are SKIPPED during training.
+    # Check your dataset's audio length distribution to avoid skipping too many.
+    max_audio_len: 160000
+    
+    # Maximum total elements (audio samples) per batch
+    # ⚠️ SECOND MOST IMPORTANT MEMORY CONTROL
+    #
+    # This controls how many samples are batched together.
+    # Formula: max_num_elements ≈ num_samples × avg_audio_length
+    #
+    # Examples:
+    #   - 320000 = ~2 samples of 10s each, or ~4 samples of 5s each
+    #   - 160000 = ~1 sample of 10s (minimum batch)
+    #
+    # Lower = less memory but slower training (more gradient accumulation needed)
+    max_num_elements: 480000  # n samples per micro-batch
+    
+    # Shuffle window for batches (number of batches to shuffle among)
+    # Higher = more randomization but more memory for buffering
+    batch_shuffle_window: 10
+    
+    # Whether to normalize audio waveforms to zero mean, unit variance
+    # false = use raw audio (recommended for pre-trained models)
+    normalize_audio: false
+    
+    # Shuffle window for examples before batching
+    # Higher = better randomization across the dataset
+    example_shuffle_window: 500
+
+
+# -----------------------------------------------------------------------------
+# TOKENIZER CONFIGURATION
+# -----------------------------------------------------------------------------
+tokenizer:
+  # Tokenizer for text encoding/decoding
+  # Must match what the model was pre-trained with
+  # omniASR_tokenizer_v1 is the standard tokenizer for Omnilingual ASR
+  name: "omniASR_tokenizer_v1"
+
+
+# -----------------------------------------------------------------------------
+# OPTIMIZER CONFIGURATION
+# -----------------------------------------------------------------------------
+optimizer:
+  config:
+    # Learning rate
+    # ⚠️ CRITICAL FOR FINE-TUNING SUCCESS
+    #
+    # Guidelines:
+    #   - 1e-5 to 5e-5: Conservative, stable fine-tuning (recommended to start)
+    #   - 5e-5 to 1e-4: Faster adaptation but risk of catastrophic forgetting
+    #   - 1e-6 to 5e-6: Very conservative, use if model diverges
+    #
+    # Start with 1e-5 and increase if training is too slow
+    lr: 1e-05
+
+
+# -----------------------------------------------------------------------------
+# TRAINER CONFIGURATION
+# -----------------------------------------------------------------------------
+trainer:
+  # Data parallelism strategy
+  # "fsdp" = Fully Sharded Data Parallel (recommended for large models)
+  # Shards model parameters across GPUs to reduce memory per GPU
+  # Even with 1 GPU, FSDP helps with memory management
+  data_parallelism: "fsdp"
+  
+  # FSDP configuration
+  fsdp:
+    # Sharding granularity
+    # "stack" = shard at transformer layer level (good balance)
+    # "layer" = shard each layer separately (more memory efficient)
+    # "model" = shard entire model (most memory efficient, slowest)
+    granularity: "stack"
+    
+    # FSDP implementation version
+    version: "v1"
+    
+    # Whether to reduce gradients in fp32
+    # false = use mixed precision for gradient reduction (faster, less memory)
+    # true = more numerically stable but slower
+    fp32_reduce: false
+  
+  # Encoder freezing for training stability
+  # ⚠️ IMPORTANT FOR FINE-TUNING
+  #
+  # Freezes the Wav2Vec2 encoder for the first N steps.
+  # This lets the decoder adapt to the new data before encoder changes.
+  # Prevents catastrophic forgetting in early training.
+  #
+  # Recommendations:
+  #   - 500-1000 steps for small datasets (<100h)
+  #   - 0 if you want to fine-tune everything from the start
+  freeze_encoder_for_n_steps: 500
+  
+  # Mixed precision training configuration
+  mixed_precision:
+    # Data type for mixed precision
+    # "torch.bfloat16" = Brain Float 16 (recommended for Ampere+ GPUs: RTX 30xx, 40xx, A100)
+    # "torch.float16" = Half precision (use for older GPUs: V100, RTX 20xx)
+    #
+    # bfloat16 has better numerical stability than float16
+    # Both reduce memory by ~50% compared to float32
+    dtype: "torch.bfloat16"
+  
+  # Gradient accumulation configuration
+  # ⚠️ CRITICAL FOR SMALL BATCH SIZES
+  #
+  # Accumulates gradients over multiple micro-batches before updating weights.
+  # Effective batch size = num_batches × micro_batch_size
+  #
+  # Since we use small micro-batches (due to 16GB GPU limit), we accumulate
+  # more steps to maintain a reasonable effective batch size.
+  #
+  # Example with our settings:
+  #   - micro_batch: ~2 samples (max_num_elements=320000)
+  #   - num_batches: 16
+  #   - effective_batch: ~32 samples per weight update
+  #
+  # Higher = larger effective batch (more stable) but slower iteration
+  grad_accumulation:
+    num_batches: 12
+
+
+# -----------------------------------------------------------------------------
+# TRAINING REGIME CONFIGURATION
+# -----------------------------------------------------------------------------
+regime:
+  # Total number of training steps (weight updates, not micro-batches)
+  # 
+  # Rough calculation for 1 epoch:
+  #   steps_per_epoch ≈ total_samples / effective_batch_size
+  #   
+  # For RegSpeech12 (~80h train, ~28800 samples at avg 10s):
+  #   steps_per_epoch ≈ 28800 / 32 ≈ 900 steps
+  #   5000 steps ≈ 5-6 epochs
+  #
+  # Adjust based on convergence - monitor validation loss
+  num_steps: 5000
+  
+  # Skip validation for the first N steps (useful to save time early on)
+  # 0 = validate from the beginning
+  validate_after_n_steps: 0
+  
+  # Validation frequency (in training steps)
+  # 500 = validate every 500 weight updates
+  # More frequent = better monitoring but slower training
+  validate_every_n_steps: 500
+  
+  # Checkpoint saving frequency (in training steps)
+  # Saves model weights to OUTPUT_DIR
+  # 500 = save every 500 steps (good for resuming if training crashes)
+  checkpoint_every_n_steps: 500
+  
+  # Metrics logging frequency (in training steps)
+  # Logs loss, learning rate, etc. to console/tensorboard
+  # 50 = log every 50 steps (good granularity without too much spam)
+  publish_metrics_every_n_steps: 50
+
+
+# =============================================================================
+# MEMORY TROUBLESHOOTING GUIDE
+# =============================================================================
+#
+# If you get CUDA Out of Memory (OOM) errors, try these in order:
+#
+# 1. REDUCE max_audio_len (most effective)
+#    160000 → 80000 (10s → 5s)
+#    This skips longer clips but dramatically reduces memory
+#
+# 2. REDUCE max_num_elements
+#    320000 → 160000
+#    Smaller micro-batches, compensate by increasing grad_accumulation
+#
+# 3. INCREASE grad_accumulation.num_batches
+#    16 → 32
+#    Maintains effective batch size with smaller micro-batches
+#
+# 4. Switch to smaller model
+#    "omniASR_LLM_1B_v2" → "omniASR_v2"
+#    CTC-only model, much smaller but potentially less accurate
+#
+# 5. Use gradient checkpointing (if supported)
+#    Trades compute for memory by recomputing activations
+#
+# =============================================================================
+# PERFORMANCE TIPS
+# =============================================================================
+#
+# 1. Monitor GPU memory during training:
+#    watch -n 1 nvidia-smi
+#
+# 2. If memory usage is well below 16GB, you can INCREASE settings:
+#    - max_audio_len: 160000 → 240000 (15s)
+#    - max_num_elements: 320000 → 480000
+#    This will speed up training
+#
+# 3. Training speed vs. stability tradeoff:
+#    - Higher lr (5e-5) = faster but risk divergence
+#    - Lower freeze_encoder_for_n_steps (0) = faster adaptation
+#    - Lower grad_accumulation (8) = faster iterations
+#
+# =============================================================================
