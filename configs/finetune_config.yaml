@@ -112,9 +112,10 @@ dataset:
 # -----------------------------------------------------------------------------
 tokenizer:
   # Tokenizer for text encoding/decoding
-  # Must match what the model was pre-trained with
-  # omniASR_tokenizer_v1 is the standard tokenizer for Omnilingual ASR
-  name: "omniASR_tokenizer_v1"
+  # Must match what the model was pre-trained with. The omniASR_LLM_1B_v2
+  # model card uses omniASR_tokenizer_written_v2 (the v1 tokenizer is for
+  # the v1 models).
+  name: "omniASR_tokenizer_written_v2"
 
 
 # -----------------------------------------------------------------------------

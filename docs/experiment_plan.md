@@ -1,3 +1,9 @@
+> **Status (updated Nov 2026):** this is the original plan from December 2025.
+> Step 1 (zero-shot evaluation of `omniASR_LLM_1B_v2`) was completed; its results are in
+> [`results/zero_shot/`](../results/zero_shot/). The 1B fine-tuning in steps 2–3 was set aside.
+> The thesis instead fine-tuned the smaller `omniASR_CTC_300M_v2` model; that work is in
+> [cykyy/omnilingual-asr (branch `rayth1`)](https://github.com/cykyy/omnilingual-asr/tree/rayth1).
+
 # Thesis Experiment Plan Overview
 
 ## Title

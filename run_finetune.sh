@@ -34,7 +34,7 @@ if [ ! -d "${PARQUET_DIR}/corpus=regspeech12" ]; then
     echo ""
     echo "Step 2: Converting RegSpeech12 to Parquet..."
     cd ${THESIS_DIR}
-    python convert_to_parquet_v2.py --output_dir ${PARQUET_DIR} --batch_size 200
+    python convert_to_parquet.py --output_dir ${PARQUET_DIR} --batch_size 200
 else
     echo ""
     echo "Step 2: Parquet data already exists, skipping conversion..."

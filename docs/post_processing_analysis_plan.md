@@ -1,3 +1,7 @@
+> **Status (updated Nov 2026):** not carried out in this repository. The zero-shot vs
+> fine-tuned comparison for the thesis was done with the fine-tuned `omniASR_CTC_300M_v2`
+> model in [cykyy/omnilingual-asr (branch `rayth1`)](https://github.com/cykyy/omnilingual-asr/tree/rayth1).
+
 # Post-Processing Analysis Plan
 
 ## 1. Purpose

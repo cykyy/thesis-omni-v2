@@ -1,6 +1,13 @@
 """
-WER/CER Evaluation Code for Omnilingual ASR on Bengali (Regional dialects)
-Dataset: RegSpeech12
+Zero-shot WER/CER of omniASR_LLM_1B_v2 on the RegSpeech12 test split, per dialect.
+
+Scoring uses jiwer's defaults: no text normalization, punctuation counts.
+
+    python src/zero_shot_eval.py --mode smoke --dialect barishal --n_samples 3
+    python src/zero_shot_eval.py --mode full --dialect all
+
+Paths default to where kagglehub stores RegSpeech12; override with
+REGSPEECH12_ROOT and RESULTS_DIR environment variables.
 """
 
 import pandas as pd
@@ -11,10 +18,13 @@ from tqdm import tqdm
 from datetime import datetime
 
 # Paths
-DATASET_ROOT = "/root/.cache/kagglehub/datasets/mdrezuwanhassan/regspeech12/versions/1"
+DATASET_ROOT = os.environ.get(
+    "REGSPEECH12_ROOT",
+    os.path.expanduser("~/.cache/kagglehub/datasets/mdrezuwanhassan/regspeech12/versions/1"),
+)
 TEST_XLSX = os.path.join(DATASET_ROOT, "test.xlsx")
 TEST_AUDIO_DIR = os.path.join(DATASET_ROOT, "test")
-RESULTS_DIR = "/root/thesis/results/zero_shot"
+RESULTS_DIR = os.environ.get("RESULTS_DIR", "results/zero_shot")
 
 # All available dialects
 ALL_DIALECTS = [
@@ -112,7 +122,7 @@ def run_smoke_test(df: pd.DataFrame, audio_dir: str, pipeline, dialect: str = "b
     
     if not audio_files:
         print("No audio files found!")
-        return None, None
+        return None, None, [], []
     
     # Run inference
     print(f"\nTranscribing {len(audio_files)} files...")
@@ -153,7 +163,7 @@ def run_smoke_test(df: pd.DataFrame, audio_dir: str, pipeline, dialect: str = "b
     print(f"  Overall CER: {overall_cer:.2%}")
     print("="*60)
     
-    return overall_wer, overall_cer
+    return overall_wer, overall_cer, references, hypotheses
 
 
 def run_full_evaluation(df: pd.DataFrame, audio_dir: str, pipeline, dialect: str = "barishal", batch_size: int = 8):
@@ -183,7 +193,7 @@ def run_full_evaluation(df: pd.DataFrame, audio_dir: str, pipeline, dialect: str
     
     if not audio_files:
         print("No audio files found!")
-        return None, None, None
+        return None, None, None, [], []
     
     print(f"Evaluating {len(audio_files)} audio files...")
     
@@ -233,7 +243,7 @@ def run_full_evaluation(df: pd.DataFrame, audio_dir: str, pipeline, dialect: str
     print(f"  Std CER:        {results_df['cer'].iloc[:-1].std():.2%}")
     print("="*60)
     
-    return results_df, overall_wer, overall_cer
+    return results_df, overall_wer, overall_cer, references, all_hypotheses
 
 
 def load_pipeline():
@@ -264,6 +274,7 @@ if __name__ == "__main__":
     dialects_to_process = ALL_DIALECTS if args.dialect == "all" else [args.dialect]
     
     summary_results = []
+    all_refs, all_hyps = [], []
     
     for dialect in dialects_to_process:
         print(f"\n{'#'*60}")
@@ -277,17 +288,19 @@ if __name__ == "__main__":
             continue
         
         if args.mode == "smoke":
-            overall_wer, overall_cer = run_smoke_test(
+            overall_wer, overall_cer, refs, hyps = run_smoke_test(
                 df, TEST_AUDIO_DIR, pipeline,
                 dialect=dialect, n_samples=args.n_samples
             )
         else:  # full
-            _, overall_wer, overall_cer = run_full_evaluation(
+            _, overall_wer, overall_cer, refs, hyps = run_full_evaluation(
                 df, TEST_AUDIO_DIR, pipeline,
                 dialect=dialect, batch_size=args.batch_size
             )
         
         if overall_wer is not None:
+            all_refs.extend(refs)
+            all_hyps.extend(hyps)
             summary_results.append({
                 'dialect': dialect,
                 'n_samples': len(df) if args.mode == "full" else min(args.n_samples, len(df)),
@@ -300,14 +313,22 @@ if __name__ == "__main__":
         summary_df = pd.DataFrame(summary_results)
         summary_df = summary_df.sort_values('wer')
         
-        # Add average row
-        avg_row = {
-            'dialect': '--- AVERAGE ---',
+        # Two summary rows. POOLED scores every clip together (the usual way to
+        # report WER). MACRO is the unweighted mean of the per-dialect scores,
+        # so small dialects count as much as Sylhet (762 test clips).
+        pooled_row = {
+            'dialect': '--- POOLED (all clips) ---',
+            'n_samples': len(all_refs),
+            'wer': wer(all_refs, all_hyps),
+            'cer': cer(all_refs, all_hyps)
+        }
+        macro_row = {
+            'dialect': '--- MACRO AVERAGE (unweighted mean of dialects) ---',
             'n_samples': summary_df['n_samples'].sum(),
             'wer': summary_df['wer'].mean(),
             'cer': summary_df['cer'].mean()
         }
-        summary_df = pd.concat([summary_df, pd.DataFrame([avg_row])], ignore_index=True)
+        summary_df = pd.concat([summary_df, pd.DataFrame([pooled_row, macro_row])], ignore_index=True)
         
         summary_path = get_summary_path()
         summary_df.to_csv(summary_path, index=False)
