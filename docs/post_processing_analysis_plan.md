@@ -1,6 +1,7 @@
-> **Status (updated Nov 2026):** not carried out in this repository. The zero-shot vs
-> fine-tuned comparison for the thesis was done with the fine-tuned `omniASR_CTC_300M_v2`
-> model in [cykyy/omnilingual-asr (branch `rayth1`)](https://github.com/cykyy/omnilingual-asr/tree/rayth1).
+> **Status (updated Nov 2026):** carried out for the final 300M model rather than the 1B
+> model. The per-dialect zero-shot vs fine-tuned comparison is in
+> [`results/300m_ctc/per_dialect.csv`](../results/300m_ctc/per_dialect.csv), and every clip's
+> outputs are in [`results/300m_ctc/test_transcripts.tsv`](../results/300m_ctc/test_transcripts.tsv).
 
 # Post-Processing Analysis Plan
 

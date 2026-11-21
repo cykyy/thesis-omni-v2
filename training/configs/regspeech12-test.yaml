@@ -1,0 +1,45 @@
+# Evaluation config for fine-tuned model on RegSpeech12 test set
+# Computes WER on the 10-hour test split
+
+# ============================================================================
+# MODEL - Load fine-tuned checkpoint
+# ============================================================================
+model:
+  name: "omniASR_CTC_300M_v2"  # Base model architecture
+  path: "output/ws_1.ecbbc39f/checkpoints/step_10000"  # Fine-tuned checkpoint
+  family: "wav2vec2_asr"
+
+# ============================================================================
+# TOKENIZER
+# ============================================================================
+tokenizer:
+  name: "omniASR_tokenizer_written_v2"
+
+# ============================================================================
+# DATASET - Test split of RegSpeech12
+# ============================================================================
+dataset:
+  name: "regspeech12"
+  valid_split: "test"          # Use test split (10 hours, 2132 samples)
+  storage_mode: "MANIFEST"
+  task_mode: "ASR"
+
+  manifest_storage_config:
+    read_text: true
+
+  asr_task_config:
+    min_audio_len: 16_000      # 1 second
+    max_audio_len: 480_000     # 30 seconds
+    max_num_elements: 1_000_000  # Batch size for eval
+    normalize_audio: true
+    example_shuffle_window: 1   # No shuffle for eval
+
+# ============================================================================
+# EVALUATOR
+# ============================================================================
+evaluator:
+  amp: true
+  amp_dtype: "bfloat16"
+
+gang: {}
+common: {}

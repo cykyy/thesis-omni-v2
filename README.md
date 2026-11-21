@@ -1,111 +1,158 @@
-# Zero-shot Omnilingual ASR on regional Bangla dialects (RegSpeech12)
+# Fine-Tuning Multilingual ASR for Bengali Regional Dialects: A Zero-Shot and Adaptation Study
 
-This repository is the **first stage of our thesis** on speech recognition for regional
-Bangla dialects (December 2025). It measures how well Meta's
+BSc thesis in Computer Science and Engineering, American International University-Bangladesh
+(AIUB), defended in 2026.
+
+**Authors:** Rayhan Mia, Sudipta Shikha Ausmita, Prajnadip Das Samya, Farduna Tajkia
+**Supervisor:** Aminun Nahar, Department of Computer Science, AIUB
+
+| | |
+|---|---|
+| Fine-tuned model | [cykyy/bn-regional-asr-300m](https://huggingface.co/cykyy/bn-regional-asr-300m) on Hugging Face |
+| Training and evaluation code | [cykyy/omnilingual-asr, branch `rayth1`](https://github.com/cykyy/omnilingual-asr/tree/rayth1) (our fork of Meta's Omnilingual ASR) |
+| Recipe, configs and results | this repository |
+
+## Summary
+
+Speech recognition works well for standard Bangla but poorly for the regional dialects that
+millions of people actually speak. We took Meta's multilingual
 [Omnilingual ASR](https://github.com/facebookresearch/omnilingual-asr) model
-`omniASR_LLM_1B_v2` transcribes the 12 dialects of the
-[RegSpeech12](https://arxiv.org/abs/2510.24096) corpus **without any training on them**
-(zero-shot), dialect by dialect.
+`omniASR_CTC_300M_v2`, measured how it performs on 12 Bangladeshi dialects without any
+adaptation (zero-shot), then fine-tuned it on 80 hours of dialect speech from
+[RegSpeech12](https://arxiv.org/abs/2510.24096).
 
-> **Where the thesis went next.** We then fine-tuned the smaller `omniASR_CTC_300M_v2`
-> model on RegSpeech12's 80-hour training split. On the same test split it reaches
-> **72.97% WER and 35.44% UER**, down from 97.93% WER zero-shot for that model.
->
-> - Code, configs and evaluation logs: [cykyy/omnilingual-asr, branch `rayth1`](https://github.com/cykyy/omnilingual-asr/tree/rayth1)
-> - Released model: [cykyy/bn-regional-asr-300m on Hugging Face](https://huggingface.co/cykyy/bn-regional-asr-300m)
+Fine-tuning cut the word error rate on the test set from **97.93% to 72.97%** and the
+character-level error rate from **81.74% to 35.44%**, with gains in every one of the 12
+dialects. The much larger character-level gain shows the model learned to hear dialect speech;
+we attribute much of the remaining word error to dialect spelling variation and the absence of
+a language model.
 
-## Zero-shot results (`omniASR_LLM_1B_v2`, RegSpeech12 test split)
+## Research questions
 
-All 2,132 test clips, transcribed with language code `ben_Beng`. Scored with
-[jiwer](https://github.com/jitsi/jiwer) defaults: no text normalization, so punctuation
-and spelling differences count as errors.
+1. How badly does a pre-trained multilingual ASR model perform on spontaneous regional Bangla
+   speech without adaptation?
+2. How much does supervised fine-tuning on RegSpeech12 improve word-level and character-level
+   transcription?
+3. What errors remain after fine-tuning, and what do they tell us about dialectal Bangla ASR?
 
-| Dialect | Clips | WER | CER |
+## Data
+
+[RegSpeech12](https://arxiv.org/abs/2510.24096) (Hassan et al., 2025) has about 100 hours of
+spontaneous speech from 12 regions of Bangladesh: Barishal, Chittagong, Comilla, Habiganj,
+Kishoreganj, Narail, Narsingdi, Noakhali, Rangpur, Sandwip, Sylhet and Tangail.
+
+| Split | Clips | Audio |
+|---|---:|---:|
+| Train | 17,049 | ~80 h |
+| Validation | 2,132 | ~10 h |
+| Test | 2,132 | ~10 h |
+
+Transcripts are written in each dialect's own spelling, not standard Bangla. The test split is
+unbalanced: Sylhet has 762 clips (36%), Noakhali only 28.
+
+## Method
+
+- **Model:** `omniASR_CTC_300M_v2`, a 325M-parameter wav2vec 2.0 encoder with a CTC output
+  layer over characters, pre-trained by Meta and supporting 1,600+ languages.
+- **Fine-tuning:** all weights, 10,000 updates (~13.6 epochs) with AdamW (peak learning rate
+  5e-5, tri-stage schedule) in bfloat16, on one 16 GB GPU in about 6.4 hours. Built on Meta's
+  fairseq2 training recipe.
+- **Evaluation:** test split, greedy CTC decoding (no language model), word error rate (WER)
+  and unit (character) error rate (UER) with strict scoring: no text normalization, so
+  punctuation and spelling differences count as errors.
+
+Full settings and commands to reproduce: [`training/`](training/).
+
+## Results
+
+### Overall (test split, 2,132 clips)
+
+| Model | WER | UER | CTC loss |
 |---|---:|---:|---:|
-| Tangail | 127 | 52.6% | 20.5% |
-| Comilla | 32 | 56.0% | 22.0% |
-| Narail | 186 | 77.8% | 41.5% |
-| Barishal | 101 | 83.7% | 49.8% |
-| Narsingdi | 137 | 84.1% | 45.2% |
-| Habiganj | 117 | 85.4% | 44.4% |
-| Rangpur | 130 | 91.8% | 57.9% |
-| Sylhet | 762 | 93.2% | 54.5% |
-| Sandwip | 131 | 95.0% | 60.3% |
-| Chittagong | 176 | 97.1% | 56.0% |
-| Kishoreganj | 205 | 98.5% | 66.3% |
-| Noakhali | 28 | 108.6% | 72.7% |
-| **All clips (pooled)** | **2,132** | **88.2%** | **51.2%** |
-| Mean of the 12 dialects | | 85.3% | 49.3% |
+| Zero-shot `omniASR_CTC_300M_v2` | 97.93% | 81.74% | 1,482.45 |
+| **Fine-tuned (ours)** | **72.97%** | **35.44%** | **393.83** |
+| Change | −24.96 pts (−25.5%) | −46.30 pts (−56.6%) | −73.4% |
 
-- **Pooled** is the standard figure: every clip scored together.
-- **Mean of the 12 dialects** gives each dialect equal weight. It is lower because the test
-  split is unbalanced: Sylhet alone is 762 clips (36%), Noakhali only 28.
-- WER above 100% (Noakhali) means the model produced more wrong words than the reference has.
-- Tangail and Comilla speech is handled far better than Chittagong, Sylhet, Sandwip or
-  Noakhali speech.
+Re-scored after the thesis while ignoring punctuation (every punctuation mark replaced by a
+space), the fine-tuned WER is 68.01%. Logs: [`results/300m_ctc/metrics/`](results/300m_ctc/metrics/).
 
-Per-clip references, hypotheses and scores are in [`results/zero_shot/`](results/zero_shot/).
+### Per dialect
 
-> **Correction (Nov 2026):** an earlier version of the summary file labelled the
-> unweighted mean of the 12 dialects (85.3% WER) as the overall average. The pooled
-> figure over all clips is 88.2% WER / 51.2% CER. The per-dialect numbers are unchanged.
+| Dialect | Test clips | Zero-shot WER | Fine-tuned WER | Fine-tuned CER |
+|---|---:|---:|---:|---:|
+| Tangail | 127 | 94.98% | **46.37%** | 15.34% |
+| Comilla | 32 | 89.08% | **48.19%** | 15.87% |
+| Habiganj | 117 | 99.47% | **61.91%** | 24.00% |
+| Narail | 186 | 95.72% | **65.80%** | 29.19% |
+| Narsingdi | 137 | 99.73% | **71.42%** | 30.57% |
+| Barishal | 101 | 95.85% | **72.89%** | 36.09% |
+| Sylhet | 762 | 98.74% | **74.88%** | 38.66% |
+| Rangpur | 130 | 96.97% | **76.24%** | 39.03% |
+| Sandwip | 131 | 99.78% | **79.15%** | 40.26% |
+| Chittagong | 176 | 97.18% | **82.20%** | 38.57% |
+| Noakhali | 28 | 99.05% | **82.29%** | 44.62% |
+| Kishoreganj | 205 | 99.60% | **87.05%** | 47.29% |
+| **All** | **2,132** | **97.93%** | **72.97%** | **35.49%** |
 
-## Reproduce
+Per-dialect scores come from re-scoring the released test transcripts; each clip's dialect is
+taken from its file name. CER here counts characters including spaces, so the overall 35.49%
+differs slightly from fairseq2's 35.44% UER. Data:
+[`results/300m_ctc/per_dialect.csv`](results/300m_ctc/per_dialect.csv); every clip's reference
+and both model outputs: [`results/300m_ctc/test_transcripts.tsv`](results/300m_ctc/test_transcripts.tsv).
 
-1. Install dependencies (Python 3.10 or newer; a CUDA GPU is strongly recommended):
+### What we found
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+- **Without adaptation the model is unusable on dialect speech:** nearly every word is wrong in
+  every dialect (89–100% WER).
+- **Fine-tuning helps every dialect, but unevenly.** Tangail and Comilla drop below 50% WER;
+  Kishoreganj, Noakhali and Chittagong stay above 80%.
+- **Characters improve much more than words** (−56.6% vs −25.5% relative). The model now gets most
+  characters right, but a single wrong letter makes the whole word wrong. Dialect words have
+  no standard spelling, and greedy decoding has no language model to pick valid words.
+- **Small dialects are uncertain.** Noakhali (28 clips) and Comilla (32) are too small for firm
+  per-dialect conclusions.
 
-2. Download RegSpeech12 from Kaggle (needs a Kaggle account):
+## Limitations
 
-   ```bash
-   python src/corpus.py
-   ```
+- Greedy decoding without a language model limits word-level accuracy.
+- One model for all 12 dialects, trained on 80 hours; some dialects have little data.
+- One training run, without repeated seeds or confidence intervals.
+- Tested only on RegSpeech12; other recording conditions are untested.
 
-3. Run the evaluation:
+## Follow-up work (in progress)
 
-   ```bash
-   python src/zero_shot_eval.py --mode smoke --dialect barishal --n_samples 3   # quick check
-   python src/zero_shot_eval.py --mode full --dialect all                       # all 12 dialects
-   ```
+- **n-gram language model decoding:** beam search with a KenLM model trained on the training
+  transcripts. Code: [`scripts/lm/` in our fork](https://github.com/cykyy/omnilingual-asr/tree/rayth1/scripts/lm).
+- **Stronger comparisons:** other public models (Whisper, MMS, IndicWav2Vec) scored with the same
+  scorer, and per-dialect confidence intervals.
 
-   Set `REGSPEECH12_ROOT` if the dataset is not in kagglehub's default cache folder, and
-   `RESULTS_DIR` to change where results are written (default `results/zero_shot`).
+## Early experiment: zero-shot 1B model
 
-`src/main.py` transcribes any audio files you pass it, and `src/gtest.py` prints the
-available GPUs.
+Before choosing the 300M model we tested the larger `omniASR_LLM_1B_v2` (wav2vec 2.0 encoder
++ LLaMA decoder) zero-shot on the same test split. It does better than the 300M model zero-shot
+(**88.17% WER**, 51.20% CER) but much worse than our fine-tuned 300M model, which beats it in
+every dialect. Code and per-clip results: [`zero_shot_1b/`](zero_shot_1b/) and
+[`results/1b_llm_zero_shot/`](results/1b_llm_zero_shot/).
 
 ## Repository layout
 
 ```
-├── src/
-│   ├── zero_shot_eval.py      # per-dialect zero-shot evaluation (produced results/)
-│   ├── corpus.py              # downloads RegSpeech12 via kagglehub
-│   ├── create_manifest.py     # RegSpeech12 -> fairseq2 manifest files
-│   ├── main.py                # transcribe a few files
-│   └── gtest.py               # GPU check
-├── convert_to_parquet.py      # RegSpeech12 -> fairseq2 Parquet format
-├── run_finetune.sh            # 1B fine-tuning launcher (not completed, see below)
-├── configs/finetune_config.yaml
-├── cards/datasets/            # fairseq2 dataset card for the Parquet data
-├── results/zero_shot/         # per-dialect CSVs + summary
-├── docs/                      # original experiment plan and notes
-└── archive/                   # early attempts, never used for results
+├── training/                 # thesis fine-tuning recipe: data prep, configs, reproduce steps
+├── results/
+│   ├── 300m_ctc/             # main thesis results: metrics, per-dialect table, transcripts
+│   └── 1b_llm_zero_shot/     # early 1B zero-shot experiment, per dialect
+├── zero_shot_1b/             # scripts for the 1B zero-shot experiment
+├── docs/                     # original experiment plan, a bug we fixed in the WER calculator
+└── archive/                  # abandoned 1B fine-tuning attempts (never produced results)
 ```
 
-## Status of the fine-tuning setup in this repository
+## Acknowledgements
 
-`run_finetune.sh`, `configs/finetune_config.yaml`, `convert_to_parquet.py` and
-`cards/` prepare a fine-tuning run of the **1B** model with the official fairseq2 recipe.
-That run was not completed; the thesis fine-tuned the 300M CTC model instead (links
-above). `archive/` holds an earlier
-hand-written training script that never worked; see [`archive/README.md`](archive/README.md).
+We thank our supervisor Aminun Nahar for her guidance. The base model and training framework
+are Meta's [Omnilingual ASR](https://github.com/facebookresearch/omnilingual-asr) and
+[fairseq2](https://github.com/facebookresearch/fairseq2). The dataset is
+[RegSpeech12](https://www.kaggle.com/datasets/mdrezuwanhassan/regspeech12) by Hassan et al.
 
-## Data
-
-RegSpeech12 (Hassan et al., 2025, [arXiv:2510.24096](https://arxiv.org/abs/2510.24096);
-[Kaggle](https://www.kaggle.com/datasets/mdrezuwanhassan/regspeech12)) has about 100 hours
-of spontaneous speech from 12 regions of Bangladesh: 17,049 training, 2,132 validation and
-2,132 test clips. The audio is not included here.
+> **Note (Nov 2026):** this repository first held only the early 1B experiment. It now covers
+> the whole thesis. An earlier summary file labelled the unweighted mean of the 12 dialects
+> (85.3% WER) as the 1B model's overall average; the figure over all clips is 88.17%.

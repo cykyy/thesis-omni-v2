@@ -1,6 +1,6 @@
 """Transcribe Bangla audio files with omniASR_LLM_1B_v2 (zero-shot).
 
-    python src/main.py path/to/clip1.wav [path/to/clip2.wav ...]
+    python zero_shot_1b/transcribe.py path/to/clip1.wav [path/to/clip2.wav ...]
 """
 
 import sys

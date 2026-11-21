@@ -3,8 +3,8 @@ Zero-shot WER/CER of omniASR_LLM_1B_v2 on the RegSpeech12 test split, per dialec
 
 Scoring uses jiwer's defaults: no text normalization, punctuation counts.
 
-    python src/zero_shot_eval.py --mode smoke --dialect barishal --n_samples 3
-    python src/zero_shot_eval.py --mode full --dialect all
+    python zero_shot_1b/zero_shot_eval.py --mode smoke --dialect barishal --n_samples 3
+    python zero_shot_1b/zero_shot_eval.py --mode full --dialect all
 
 Paths default to where kagglehub stores RegSpeech12; override with
 REGSPEECH12_ROOT and RESULTS_DIR environment variables.
@@ -24,7 +24,7 @@ DATASET_ROOT = os.environ.get(
 )
 TEST_XLSX = os.path.join(DATASET_ROOT, "test.xlsx")
 TEST_AUDIO_DIR = os.path.join(DATASET_ROOT, "test")
-RESULTS_DIR = os.environ.get("RESULTS_DIR", "results/zero_shot")
+RESULTS_DIR = os.environ.get("RESULTS_DIR", "results/1b_llm_zero_shot")
 
 # All available dialects
 ALL_DIALECTS = [

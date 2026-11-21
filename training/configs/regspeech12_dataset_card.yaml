@@ -1,0 +1,7 @@
+# Asset card for RegSpeech12 dataset (100 hours Bengali regional speech)
+# Source: https://www.kaggle.com/datasets/mdrezuwanhassan/regspeech12
+name: regspeech12
+dataset_family: manifest_asr_dataset
+dataset_config:
+  data: dataset/regspeech12/data_manifest
+tokenizer_ref: omniASR_tokenizer_written_v2
